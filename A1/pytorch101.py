@@ -24,14 +24,16 @@ def create_sample_tensor():
   #                    TODO: Implement this function                          #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  x = torch.zeros(3, 2)
+  x[0][1] = 10
+  x[1][0] = 100
   #############################################################################
   #                            END OF YOUR CODE                               #
   #############################################################################
   return x
 
 
-def mutate_tensor(x, indices, values):
+def mutate_tensor(x: torch.Tensor, indices: list, values: list):
   """
   Mutate the PyTorch tensor x according to indices and values.
   Specifically, indices is a list [(i0, j0), (i1, j1), ... ] of integer indices,
@@ -58,14 +60,20 @@ def mutate_tensor(x, indices, values):
   #                    TODO: Implement this function                          #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  x_shape = x.shape
+  for pair, value in zip(indices, values):
+    # Check if index is within range
+    for i in range(len(x_shape)):
+      assert 0 <= pair[i] < x_shape[i], f"Index {pair} is out of range for tensor of shape {x_shape}"
+
+    x[pair] = value
   #############################################################################
   #                            END OF YOUR CODE                               #
   #############################################################################
   return x
 
 
-def count_tensor_elements(x):
+def count_tensor_elements(x: torch.Tensor):
   """
   Count the number of scalar elements in a tensor x.
 
@@ -87,12 +95,13 @@ def count_tensor_elements(x):
   #   You CANNOT use the built-in functions torch.numel(x) or x.numel().      #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  num_elements = 1
+  for dim in x.shape:
+    num_elements *= dim
   #############################################################################
   #                            END OF YOUR CODE                               #
   #############################################################################
   return num_elements
-
 
 def create_tensor_of_pi(M, N):
   """
@@ -109,14 +118,14 @@ def create_tensor_of_pi(M, N):
   #       TODO: Implement this function. It should take one line.             #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  x = torch.full((M, N), 3.14)
   #############################################################################
   #                            END OF YOUR CODE                               #
   #############################################################################
   return x
 
 
-def multiples_of_ten(start, stop):
+def multiples_of_ten(start: int, stop: int):
   """
   Returns a Tensor of dtype torch.float64 that contains all of the multiples of
   ten (in order) between start and stop, inclusive. If there are no multiples
@@ -134,7 +143,12 @@ def multiples_of_ten(start, stop):
   #                    TODO: Implement this function                          #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  min_num = ((start - 1) // 10 + 1) * 10
+  max_num = (stop // 10) * 10
+  if min_num > max_num:
+    x = torch.empty(0, dtype=torch.float64)
+  else:
+    x = torch.arange(min_num, max_num + 1, 10, dtype=torch.float64)
   #############################################################################
   #                            END OF YOUR CODE                               #
   #############################################################################
@@ -172,7 +186,11 @@ def slice_indexing_practice(x):
   #                    TODO: Implement this function                          #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  assert len(x.shape) == 2
+  last_row = x[-1]
+  third_col = x[:, 2:3]
+  first_two_rows_three_cols = x[:2, :3]
+  even_rows_odd_cols = x[::2, 1::2]
   #############################################################################
   #                            END OF YOUR CODE                               #
   #############################################################################
@@ -212,13 +230,24 @@ def slice_assignment_practice(x):
   #                    TODO: Implement this function                          #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  assert len(x.shape) == 2
+  assert x.shape[0] >= 4
+  assert x.shape[1] >= 6
+  first_four_rows_first_six_cols = torch.tensor([
+    [0, 1, 2, 2, 2, 2],
+    [0, 1, 2, 2, 2, 2],
+    [3, 4, 3, 4, 5, 5],
+    [3, 4, 3, 4, 5, 5],
+  ])
+  x[:4, :6] = first_four_rows_first_six_cols
   #############################################################################
   #                            END OF YOUR CODE                               #
   #############################################################################
   return x
 
 
+# NIKO
+# TODO
 def shuffle_cols(x):
   """
   Re-order the columns of an input tensor as described below.
