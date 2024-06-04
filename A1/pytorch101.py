@@ -246,8 +246,6 @@ def slice_assignment_practice(x):
   return x
 
 
-# NIKO
-# TODO
 def shuffle_cols(x):
   """
   Re-order the columns of an input tensor as described below.
@@ -268,7 +266,10 @@ def shuffle_cols(x):
   #                    TODO: Implement this function                          #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  assert len(x.shape) == 2, "Input tensor must be two-dimensional"
+  assert x.shape[1] >= 3, "Input tensor must have at least 3 columns"
+  col_idx = [0, 0, 2, 1]
+  y = x[:, col_idx]
   #############################################################################
   #                            END OF YOUR CODE                               #
   #############################################################################
@@ -294,7 +295,9 @@ def reverse_rows(x):
   #                    TODO: Implement this function                          #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  assert len(x.shape) == 2, "Input tensor must be two-dimensional"
+  row_idx = list(range(x.shape[0] - 1, -1, -1))
+  y = x[row_idx, :]
   #############################################################################
   #                            END OF YOUR CODE                               #
   #############################################################################
@@ -321,7 +324,12 @@ def take_one_elem_per_col(x):
   #                    TODO: Implement this function                          #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  assert len(x.shape) == 2, "Input tensor must be two-dimensional"
+  assert x.shape[0] >= 4, "Input tensor must have at least 4 rows"
+  assert x.shape[1] >= 3, "Input tensor must have at least 3 columns"
+  row_idx = [1, 0, 3]
+  col_idx = [0, 1, 2]
+  y = x[row_idx, col_idx]
   #############################################################################
   #                            END OF YOUR CODE                               #
   #############################################################################
@@ -347,14 +355,15 @@ def count_negative_entries(x):
   #                    TODO: Implement this function                          #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  mask = (x < 0)
+  num_neg = x[mask].numel()
   #############################################################################
   #                            END OF YOUR CODE                               #
   #############################################################################
   return num_neg
 
 
-def make_one_hot(x):
+def make_one_hot(x: list[int]):
   """
   Construct a tensor of one-hot-vectors from a list of Python integers.
 
@@ -372,13 +381,19 @@ def make_one_hot(x):
   #                    TODO: Implement this function                          #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  N, C = len(x), 1 + max(x)
+  y = torch.zeros((N, C), dtype=torch.float32)
+  row_idx = list(range(N))
+  col_idx = x
+  y[row_idx, col_idx] = 1
   #############################################################################
   #                            END OF YOUR CODE                               #
   #############################################################################
   return y
 
 
+# NIKO
+# TODO 
 def reshape_practice(x):
   """
   Given an input tensor of shape (24,), return a reshaped tensor y of shape
