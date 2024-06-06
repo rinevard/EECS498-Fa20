@@ -420,7 +420,17 @@ def reshape_practice(x):
   #                    TODO: Implement this function                          #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  n = x.shape[0]
+  assert n % 8 == 0, "n is not a multiple of 8"
+
+  # [a1, a2, a3, a4, a5, a6] -> [[a1, a2, a3], [a4, a5, a6]], 
+  # where ai is a tensor with shape (4, )
+  y1 = x.reshape(2, n // 8, 4)
+  # [[a1, a2, a3], [a4, a5, a6]] -> [[a1, a4], [a2, a5], [a3, a6]]
+  y2 = y1.transpose(0, 1).contiguous()
+  # notice that ai are still tensors, so we need to reshape them again
+  y = y2.reshape(n // 8, 8)
+
   #############################################################################
   #                            END OF YOUR CODE                               #
   #############################################################################
@@ -458,7 +468,12 @@ def zero_row_min(x):
   #                    TODO: Implement this function                          #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  assert len(x.shape) == 2
+  row = list(range(x.shape[0]))
+  col = torch.argmin(x, dim=1).tolist()
+  y = x.clone()
+  print(col)
+  y[row, col] = 0
   #############################################################################
   #                            END OF YOUR CODE                               #
   #############################################################################
@@ -491,7 +506,19 @@ def batched_matrix_multiply(x, y, use_loop=True):
   #                    TODO: Implement this function                          #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  assert x.shape[0] == y.shape[0], f"The batch sizes of input tensors 'x' and 'y' must match, but got {x.shape[0]} and {y.shape[0]} respectively"
+  assert len(x.shape) == len(y.shape) == 3, f"Input tensors 'x' and 'y' must be 3-dimensional, but got {len(x.shape)}D and {len(y.shape)}D respectively"
+  
+  B, N, M, P = x.shape[0], x.shape[1], x.shape[2], y.shape[2]
+  if use_loop == True:
+    matrixes = []
+    z = torch.empty(B, N, P, dtype=x.dtype)
+    for i in range(x.shape[0]):
+      matrixes.append(x[i, :, :].mm(y[i, :, :]))
+    z = torch.stack(matrixes, dim=0)
+  else:
+    z = x.bmm(y)
+
   #############################################################################
   #                            END OF YOUR CODE                               #
   #############################################################################
@@ -526,7 +553,12 @@ def normalize_columns(x):
   #                    TODO: Implement this function                          #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  assert len(x.shape) == 2, f"The shape of input must have length 2, but has length {len(x.shape)}"
+
+  # 如果x.shape[0] == 1怎么办?
+  mean_col = x.mean(0, keepdim=True)
+  sigma_col = torch.sqrt(x.var(0, keepdim=True))
+  y = (x - mean_col) / sigma_col
   #############################################################################
   #                            END OF YOUR CODE                               #
   #############################################################################
@@ -571,7 +603,10 @@ def mm_on_gpu(x, w):
   #                    TODO: Implement this function                          #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  x = x.cuda()
+  w = w.cuda()
+  y = x.mm(w)
+  y = y.cpu()
   #############################################################################
   #                            END OF YOUR CODE                               #
   #############################################################################

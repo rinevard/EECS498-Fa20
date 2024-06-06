@@ -59,7 +59,16 @@ def compute_distances_two_loops(x_train, x_test):
   # functions from torch.nn or torch.nn.functional.                            #
   ##############################################################################
   # Replace "pass" statement with your code
-  pass
+
+  # flatten the data
+  x_train = x_train.reshape(num_train, -1)
+  x_test = x_test.reshape(num_test, -1)
+
+  for i in range(num_train):
+    for j in range(num_test):
+      det = x_train[i] - x_test[j]
+      dists[i, j] = det.dot(det)
+
   ##############################################################################
   #                             END OF YOUR CODE                               #
   ##############################################################################
@@ -102,7 +111,14 @@ def compute_distances_one_loop(x_train, x_test):
   # functions from torch.nn or torch.nn.functional.                            #
   ##############################################################################
   # Replace "pass" statement with your code
-  pass
+  
+  x_train = x_train.reshape(num_train, -1)
+  x_test = x_test.reshape(num_test, -1)
+
+  for j in range(num_test):
+    det_matrix = x_train - x_test[j]
+    dists[:, j] = (det_matrix * det_matrix).sum(dim=1)
+
   ##############################################################################
   #                             END OF YOUR CODE                               #
   ##############################################################################
@@ -137,9 +153,11 @@ def compute_distances_no_loops(x_train, x_test):
   """
   # Initialize dists to be a tensor of shape (num_train, num_test) with the
   # same datatype and device as x_train
+
   num_train = x_train.shape[0]
   num_test = x_test.shape[0]
   dists = x_train.new_zeros(num_train, num_test)
+
   ##############################################################################
   # TODO: Implement this function without using any explicit loops and without #
   # creating any intermediate tensors with O(num_train * num_test) elements.   #
@@ -151,7 +169,15 @@ def compute_distances_no_loops(x_train, x_test):
   #       and a matrix multiply.                                               #
   ##############################################################################
   # Replace "pass" statement with your code
-  pass
+
+  x_train = x_train.reshape(num_train, -1)
+  x_test = x_test.reshape(num_test, -1)
+
+  vec_norm_square_of_xtrain = (x_train * x_train).sum(dim=1, keepdim=True)
+  vec_norm_square_of_xtest = (x_test * x_test).sum(dim=1, keepdim=True).T
+
+  dists = vec_norm_square_of_xtrain + vec_norm_square_of_xtest - 2 * x_train.mm(x_test.T)
+
   ##############################################################################
   #                             END OF YOUR CODE                               #
   ##############################################################################
@@ -191,7 +217,12 @@ def predict_labels(dists, y_train, k=1):
   # samples. Hint: Look up the function torch.topk                             #
   ##############################################################################
   # Replace "pass" statement with your code
-  pass
+
+  _, index_matrix = dists.topk(k, dim=0, largest=False)
+  label_matrix = y_train[index_matrix]
+  # https://pytorch.org/docs/stable/generated/torch.mode.html
+  y_pred, _ = torch.mode(label_matrix, dim=0)
+
   ##############################################################################
   #                             END OF YOUR CODE                               #
   ##############################################################################
@@ -213,7 +244,10 @@ class KnnClassifier:
     # computation and simply memorize the training data.                      #
     ###########################################################################
     # Replace "pass" statement with your code
-    pass
+    
+    self.train_data = x_train
+    self.train_label = y_train
+
     ###########################################################################
     #                           END OF YOUR CODE                              #
     ###########################################################################
@@ -237,7 +271,10 @@ class KnnClassifier:
     # output labels.
     ###########################################################################
     # Replace "pass" statement with your code
-    pass
+    
+    dists = compute_distances_no_loops(self.train_data, x_test)
+    y_test_pred = predict_labels(dists, self.train_label, k)
+    
     ###########################################################################
     #                           END OF YOUR CODE                              #
     ###########################################################################
