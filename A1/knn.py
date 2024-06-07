@@ -230,7 +230,7 @@ def predict_labels(dists, y_train, k=1):
 
 
 class KnnClassifier:
-  def __init__(self, x_train, y_train):
+  def __init__(self, x_train: torch.tensor, y_train: torch.tensor):
     """
     Create a new K-Nearest Neighbor classifier with the specified training data.
     In the initializer we simply memorize the provided training data.
@@ -336,7 +336,10 @@ def knn_cross_validate(x_train, y_train, num_folds=5, k_choices=None):
   # Hint: torch.chunk                                                          #
   ##############################################################################
   # Replace "pass" statement with your code
-  pass
+  
+  x_train_folds = list(x_train.chunk(num_folds))
+  y_train_folds = list(y_train.chunk(num_folds))
+
   ##############################################################################
   #                            END OF YOUR CODE                                #
   ##############################################################################
@@ -355,7 +358,23 @@ def knn_cross_validate(x_train, y_train, num_folds=5, k_choices=None):
   # values in k in k_to_accuracies.   HINT: torch.cat                          #
   ##############################################################################
   # Replace "pass" statement with your code
-  pass
+  
+  num_folds = len(x_train_folds)
+  for k in k_choices:
+    k_to_accuracies[k] = []
+    for i in range(num_folds):
+      x_trian_tuple = tuple(x_train_folds[j] for j in range(num_folds) if j != i)
+      y_train_tuple = tuple(y_train_folds[j] for j in range(num_folds) if j != i)
+      x_train_for_i = torch.cat(x_trian_tuple, dim=0)
+      y_train_for_i = torch.cat(y_train_tuple, dim=0)
+
+      x_test_for_i = x_train_folds[i]
+      y_test_for_i = y_train_folds[i]
+
+      knn = KnnClassifier(x_train_for_i, y_train_for_i)
+      accur_for_k_i = knn.check_accuracy(x_test_for_i, y_test_for_i, k, quiet=True)
+      k_to_accuracies[k].append(accur_for_k_i)
+
   ##############################################################################
   #                            END OF YOUR CODE                                #
   ##############################################################################
@@ -363,7 +382,7 @@ def knn_cross_validate(x_train, y_train, num_folds=5, k_choices=None):
   return k_to_accuracies
 
 
-def knn_get_best_k(k_to_accuracies):
+def knn_get_best_k(k_to_accuracies: dict):
   """
   Select the best value for k, from the cross-validation result from
   knn_cross_validate. If there are multiple k's available, then you SHOULD
@@ -385,7 +404,11 @@ def knn_get_best_k(k_to_accuracies):
   # the value of k that has the highest mean accuracy accross all folds.       #
   ##############################################################################
   # Replace "pass" statement with your code
-  pass
+
+  # returns true if k1 is better else false
+  average_accur_of_k = lambda k: (sum(k_to_accuracies[k]) / len(k_to_accuracies[k]), -k)
+  best_k = max(k_to_accuracies.keys(), key=average_accur_of_k)
+
   ##############################################################################
   #                            END OF YOUR CODE                                #
   ##############################################################################
