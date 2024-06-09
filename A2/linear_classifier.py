@@ -126,7 +126,8 @@ def svm_loss_naive(W, X, y, reg):
         # that the loss is being computed.                                    #
         #######################################################################
         # Replace "pass" statement with your code
-        pass
+        dW[:, j] += X[i].reshape(-1)
+        dW[:, y[i]] -= X[i].reshape(-1)
         #######################################################################
         #                       END OF YOUR CODE                              #
         #######################################################################
@@ -144,7 +145,8 @@ def svm_loss_naive(W, X, y, reg):
   # Compute the gradient of the loss function and store it in dW. (part 2)    #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  dW /= num_train
+  dW += reg * 2 * W
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
@@ -178,7 +180,18 @@ def svm_loss_vectorized(W, X, y, reg):
   # result in loss.                                                           #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+
+
+  
+  # NIKO
+  # TODO
+  num_classes = W.shape[1]
+  num_train = X.shape[0]
+  predict_scores = X.mm(W) # (N, C)
+  correct_class_score = predict_scores[list(range(num_train)), y.tolist()] # (N,)
+  margin = predict_scores.t() - correct_class_score + 1
+  loss = torch.sum(margin[margin > 0]) / num_train
+  loss += reg * torch.sum(W * W)
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
@@ -193,7 +206,12 @@ def svm_loss_vectorized(W, X, y, reg):
   # loss.                                                                     #
   #############################################################################
   # Replace "pass" statement with your code
-  pass
+  
+  
+  # NIKO
+  # TODO
+
+
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
