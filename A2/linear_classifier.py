@@ -180,17 +180,14 @@ def svm_loss_vectorized(W, X, y, reg):
   # result in loss.                                                           #
   #############################################################################
   # Replace "pass" statement with your code
-
-
-  
-  # NIKO
-  # TODO
-  num_classes = W.shape[1]
   num_train = X.shape[0]
-  predict_scores = X.mm(W) # (N, C)
-  correct_class_score = predict_scores[list(range(num_train)), y.tolist()] # (N,)
-  margin = predict_scores.t() - correct_class_score + 1
-  loss = torch.sum(margin[margin > 0]) / num_train
+
+  scores = X.mm(W) # (N, C)
+  correct_class_scores = scores[torch.arange(num_train), y] # (N,)
+  margins = scores - correct_class_scores.view(-1, 1) + 1 # (N, C)
+  margins[torch.arange(num_train), y] = 0
+
+  loss = torch.sum(margins[margins > 0]) / num_train  
   loss += reg * torch.sum(W * W)
   #############################################################################
   #                             END OF YOUR CODE                              #
@@ -206,12 +203,18 @@ def svm_loss_vectorized(W, X, y, reg):
   # loss.                                                                     #
   #############################################################################
   # Replace "pass" statement with your code
-  
+
+  # Try to solve this problem when there is only one sample, 
+  # then generalize it to the batch case
+  contribute_or_not = margins > 0
+  # NIKO
+  # TODO
+  total_contribution = 0
   
   # NIKO
   # TODO
 
-
+  dW += reg * 2 * W
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
