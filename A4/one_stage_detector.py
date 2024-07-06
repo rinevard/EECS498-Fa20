@@ -60,8 +60,18 @@ class FCOSPredictionNetwork(nn.Module):
         stem_cls = []
         stem_box = []
         # Replace "pass" statement with your code
-        pass
-
+        for i in range(len(stem_channels)):
+            stem_cls.extend([
+                nn.Conv2d(in_channels, stem_channels[i], kernel_size=3, padding=1),
+                nn.ReLU()
+            ])
+            stem_box.extend([
+                nn.Conv2d(in_channels, stem_channels[i], kernel_size=3, padding=1),
+                nn.ReLU()
+            ])
+            in_channels = stem_channels[i]
+        # weight initialization is in the last part of the code with comment "weight initialization"
+        
         # Wrap the layers defined by student into a `nn.Sequential` module:
         self.stem_cls = nn.Sequential(*stem_cls)
         self.stem_box = nn.Sequential(*stem_box)
@@ -88,7 +98,13 @@ class FCOSPredictionNetwork(nn.Module):
         self.pred_ctr = None  # Centerness conv
 
         # Replace "pass" statement with your code
-        pass
+        self.pred_cls = nn.Conv2d(in_channels, num_classes, kernel_size=3, padding=1)
+        self.pred_box = nn.Conv2d(in_channels, 4, kernel_size=3, padding=1)
+        self.pred_ctr = nn.Conv2d(in_channels, 1, kernel_size=3, padding=1)
+
+        # weight initialization
+        self._initialize_weights()
+
         ######################################################################
         #                           END OF YOUR CODE                         #
         ######################################################################
@@ -97,6 +113,12 @@ class FCOSPredictionNetwork(nn.Module):
         # stability. Without this, the training will most likely diverge.
         # STUDENTS: You do not need to get into details of why this is needed.
         torch.nn.init.constant_(self.pred_cls.bias, -math.log(99))
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight, mean=0, std=0.01)
+                nn.init.constant_(m.bias, 0)
 
     def forward(self, feats_per_fpn_level: TensorDict) -> List[TensorDict]:
         """
@@ -135,7 +157,25 @@ class FCOSPredictionNetwork(nn.Module):
         centerness_logits = {}
 
         # Replace "pass" statement with your code
-        pass
+        for key, p_i in feats_per_fpn_level.items():
+            cls_features = self.stem_cls(p_i)
+            stem_features = self.stem_box(p_i)
+
+            # size: (batch_size, output_size, H, W)
+            cls_before_flattened = self.pred_cls(cls_features)
+            box_before_flattened = self.pred_box(stem_features)
+            ctr_before_flattened = self.pred_ctr(stem_features)
+
+            class_logits[key] = cls_before_flattened.permute(0, 2, 3, 1).reshape(
+                cls_before_flattened.shape[0], -1, cls_before_flattened.shape[1]
+            )
+            boxreg_deltas[key] = box_before_flattened.permute(0, 2, 3, 1).reshape(
+                box_before_flattened.shape[0], -1, box_before_flattened.shape[1]
+            )
+            centerness_logits[key] = ctr_before_flattened.permute(0, 2, 3, 1).reshape(
+                ctr_before_flattened.shape[0], -1, ctr_before_flattened.shape[1]
+            )
+        
         ######################################################################
         #                           END OF YOUR CODE                         #
         ######################################################################
