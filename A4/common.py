@@ -171,7 +171,15 @@ def get_fpn_location_coords(
         # TODO: Implement logic to get location co-ordinates below.          #
         ######################################################################
         # Replace "pass" statement with your code
-        pass
+        
+        H, W = feat_shape[-2:]
+        coords = torch.arange(H * W)
+        i_coords = coords // W
+        j_coords = coords % W
+        # (0, 0), (0, 1), ..., (0, W-1), (1, 0), (1, 1), ..., (1, W-1), ..., (H-1, 0), (H-1, 1), ..., (H-1, W-1)
+        coordinates_ij = torch.stack((i_coords, j_coords), dim=1)
+
+        location_coords[level_name] = (coordinates_ij + 0.5) * level_stride
         ######################################################################
         #                             END OF YOUR CODE                       #
         ######################################################################
