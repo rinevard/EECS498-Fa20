@@ -1,1 +1,1 @@
-# This repository contains my finished assignments for EECS498.
+# This repository contains my completed assignments for EECS498.
