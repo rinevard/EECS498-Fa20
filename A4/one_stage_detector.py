@@ -595,7 +595,7 @@ class FCOS(nn.Module):
         loss_cls, loss_box, loss_ctr = None, None, None
 
         # Replace "pass" statement with your code
-        
+
         num_classes = pred_cls_logits.shape[-1]
         # now background's number is '0'
         class_plus_one = matched_gt_boxes[:, :, -1].to(torch.int64) + 1
@@ -706,19 +706,29 @@ class FCOS(nn.Module):
             )
             # Step 1:
             # Replace "pass" statement with your code
-            pass
+            # shape: (N, )
+            max_pred_scores, most_confident_classes = level_pred_scores.max(dim=1)
 
             # Step 2:
             # Replace "pass" statement with your code
-            pass
+            good_enough_idx = (max_pred_scores > test_score_thresh)
+            level_pred_scores = max_pred_scores[good_enough_idx]
+            level_pred_classes = most_confident_classes[good_enough_idx]
 
             # Step 3:
             # Replace "pass" statement with your code
-            pass
+            level_stride = self.backbone.fpn_strides[level_name]
+            level_locations = level_locations[good_enough_idx]
+            level_deltas = level_deltas[good_enough_idx]
+            level_pred_boxes = fcos_apply_deltas_to_locations(level_deltas, level_locations, level_stride)
 
             # Step 4: Use `images` to get (height, width) for clipping.
             # Replace "pass" statement with your code
-            pass
+            img_height, img_width = images.shape[-2:]
+            level_pred_boxes[:, [0, 2]] = torch.clamp(level_pred_boxes[:, [0, 2]], 
+                                                      min=0, max=img_width - 1)
+            level_pred_boxes[:, [1, 3]] = torch.clamp(level_pred_boxes[:, [1, 3]], 
+                                                      min=0, max=img_height - 1)
             ##################################################################
             #                          END OF YOUR CODE                      #
             ##################################################################

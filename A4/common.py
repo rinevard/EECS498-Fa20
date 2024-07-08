@@ -11,6 +11,7 @@ from torch import nn
 from torch.nn import functional as F
 from torchvision import models
 from torchvision.models import feature_extraction
+from torchvision.ops import nms as torchvision_nms
 
 
 def hello_common():
@@ -218,7 +219,58 @@ def nms(boxes: torch.Tensor, scores: torch.Tensor, iou_threshold: float = 0.5):
     # github.com/pytorch/vision/blob/main/torchvision/csrc/ops/cpu/nms_kernel.cpp
     #############################################################################
     # Replace "pass" statement with your code
-    pass
+
+    # My implementation is so slow. 
+    # To speed up inference, I'd prefer using torchvision's implementation. 
+    return torchvision_nms(boxes, scores, iou_threshold)
+
+    def calculate_iou(box1: torch.Tensor, box2: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate IOU between two boxes.
+
+        Args:
+            box1, box2: tensors with shape (4, ) and format [x1, y1, x2, y2]
+        
+        Returns:
+            iou: scalar tensor
+        """
+        x1 = torch.max(box1[0], box2[0])
+        y1 = torch.max(box1[1], box2[1])
+        x2 = torch.min(box1[2], box2[2])
+        y2 = torch.min(box1[3], box2[3])
+        
+        intersection = torch.clamp(x2 - x1, min=0) * torch.clamp(y2 - y1, min=0)
+        
+        area1 = (box1[2] - box1[0]) * (box1[3] - box1[1])
+        area2 = (box2[2] - box2[0]) * (box2[3] - box2[1])
+        
+        union = area1 + area2 - intersection
+        
+        iou = intersection / union
+        
+        return iou
+    sorted_score, sorted_indices = scores.sort(descending=True)
+    keep = []
+    removed = set()
+
+    for i in range(len(sorted_indices)):
+        if i in removed:
+            continue
+        
+        current_index = sorted_indices[i]
+        keep.append(current_index.item())
+        
+        for j in range(i + 1, len(sorted_indices)):
+            if j in removed:
+                continue
+            
+            compare_index = sorted_indices[j]
+            iou = calculate_iou(boxes[current_index], boxes[compare_index])
+            
+            if iou > iou_threshold:
+                removed.add(j)
+
+    keep = torch.tensor(keep, dtype=torch.long, device=boxes.device)
     #############################################################################
     #                              END OF YOUR CODE                             #
     #############################################################################
