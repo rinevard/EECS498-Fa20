@@ -173,7 +173,7 @@ def get_fpn_location_coords(
         # Replace "pass" statement with your code
         
         H, W = feat_shape[-2:]
-        coords = torch.arange(H * W)
+        coords = torch.arange(H * W, dtype=dtype, device=device)
         i_coords = coords // W
         j_coords = coords % W
         # (0, 0), (0, 1), ..., (0, W-1), (1, 0), (1, 1), ..., (1, W-1), ..., (H-1, 0), (H-1, 1), ..., (H-1, W-1)
