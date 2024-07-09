@@ -166,7 +166,10 @@ class FCOSPredictionNetwork(nn.Module):
             box_before_flattened = self.pred_box(stem_features)
             ctr_before_flattened = self.pred_ctr(stem_features)
 
-            # size: (batch_size, output_size, H, W) -> size: (batch_size, H, W, output_size)
+            # size: (batch_size, output_size, H, W) 
+            # -> size: (batch_size, H, W, output_size)
+            # -> size: (batch_size, H*W, output_size)
+            
             class_logits[key] = cls_before_flattened.permute(0, 2, 3, 1).reshape(
                 cls_before_flattened.shape[0], -1, cls_before_flattened.shape[1]
             )

@@ -61,7 +61,12 @@ class RPNPredictionNetwork(nn.Module):
         # `FCOSPredictionNetwork` for this code block.
         stem_rpn = []
         # Replace "pass" statement with your code
-        pass
+        for i in range(len(stem_channels)):
+            stem_rpn.extend([
+                nn.Conv2d(in_channels, stem_channels[i], kernel_size=3, padding=1),
+                nn.ReLU()
+                ])
+            in_channels = stem_channels[i]
 
         # Wrap the layers defined by student into a `nn.Sequential` module:
         self.stem_rpn = nn.Sequential(*stem_rpn)
@@ -79,10 +84,19 @@ class RPNPredictionNetwork(nn.Module):
         self.pred_box = None  # Box regression conv
 
         # Replace "pass" statement with your code
-        pass
+        self.pred_obj = nn.Conv2d(stem_channels[-1], 1 * self.num_anchors, kernel_size=1)
+        self.pred_box = nn.Conv2d(stem_channels[-1], 4 * self.num_anchors, kernel_size=1)
+        
+        self._initialize_weights()
         ######################################################################
         #                           END OF YOUR CODE                         #
         ######################################################################
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight, mean=0, std=0.01)
+                nn.init.constant_(m.bias, 0)
 
     def forward(self, feats_per_fpn_level: TensorDict) -> List[TensorDict]:
         """
@@ -111,7 +125,25 @@ class RPNPredictionNetwork(nn.Module):
         boxreg_deltas = {}
 
         # Replace "pass" statement with your code
-        pass
+        for key, p_i in feats_per_fpn_level.items():
+            features = self.stem_rpn(p_i)
+
+            # size: (batch_size, output_size, H, W)
+            obj_before_flattened = self.pred_obj(features)
+            box_before_flattened = self.pred_box(features)
+
+            # size: (batch_size, output_size * num_anchors, H, W)
+            # (reshape) -> size: (batch_size, output_size, H * W * num_anchors)
+            # (permute) -> size: (batch_size, H * W * num_anchors, output_size)
+            # for obj_logit, size will be squeezed to (batch_size, H * W * num_anchors)
+
+            batch_size = obj_before_flattened.shape[0]
+            object_logits[key] = obj_before_flattened.reshape(
+                batch_size, 1, -1
+            ).permute(0, 2, 1).squeeze(-1)
+            boxreg_deltas[key] = box_before_flattened.reshape(
+                batch_size, 4, -1
+            ).permute(0, 2, 1)
         ######################################################################
         #                           END OF YOUR CODE                         #
         ######################################################################
