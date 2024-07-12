@@ -209,7 +209,20 @@ def generate_fpn_anchors(
             # locations to get top-left and bottom-right co-ordinates.
             ##################################################################
             # Replace "pass" statement with your code
-            pass
+            
+            size = level_stride * stride_scale
+            # change the type of values to tensor for computational convenience
+            area = pow(size, 2)
+            width = math.sqrt(area / aspect_ratio)
+            height = area / width
+            # shape: (2, )
+            top_left_vec = torch.tensor((-width / 2, height / 2))
+            # shape: (H * W, 2)
+            top_left_location = locations + top_left_vec
+            bottom_right_location = locations - top_left_vec
+            # shape: (H * W, 4)
+            anchor_boxes.append(torch.cat((top_left_location, bottom_right_location), dim=1))
+
             ##################################################################
             #                           END OF YOUR CODE                     #
             ##################################################################
@@ -243,7 +256,43 @@ def iou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
     # TODO: Implement the IoU function here.                                 #
     ##########################################################################
     # Replace "pass" statement with your code
-    pass
+    
+    # (M, 2)
+    x_boxes1 = boxes1[:, [0, 2]]
+    y_boxes1 = boxes1[:, [1, 3]]
+    # (N, 2)
+    x_boxes2 = boxes2[:, [0, 2]]
+    y_boxes2 = boxes2[:, [1, 3]]
+
+    # (M, 1)
+    max_x_boxes1 = torch.max(x_boxes1, dim=1).values.unsqueeze(1)
+    min_x_boxes1 = torch.min(x_boxes1, dim=1).values.unsqueeze(1)
+    max_y_boxes1 = torch.max(y_boxes1, dim=1).values.unsqueeze(1)
+    min_y_boxes1 = torch.min(y_boxes1, dim=1).values.unsqueeze(1)
+    wid_boxes1 = max_x_boxes1 - min_x_boxes1
+    height_boxes1 = max_y_boxes1 - min_y_boxes1
+
+    # (1, N)
+    max_x_boxes2 = torch.max(x_boxes2, dim=1).values.unsqueeze(0)
+    min_x_boxes2 = torch.min(x_boxes2, dim=1).values.unsqueeze(0)
+    max_y_boxes2 = torch.max(y_boxes2, dim=1).values.unsqueeze(0)
+    min_y_boxes2 = torch.min(y_boxes2, dim=1).values.unsqueeze(0)
+    wid_boxes2 = max_x_boxes2 - min_x_boxes2
+    height_boxes2 = max_y_boxes2 - min_y_boxes2
+
+    # (M, N)
+    intersec_detx = torch.min(torch.min((max_x_boxes1 - min_x_boxes2), (max_x_boxes2 - min_x_boxes1)), 
+                              torch.min(wid_boxes1, wid_boxes2))
+    intersec_dety = torch.min(torch.min((max_y_boxes1 - min_y_boxes2), (max_y_boxes2 - min_y_boxes1)), 
+                              torch.min(height_boxes1, height_boxes2))
+    intersec_detx[intersec_detx < 0] = 0
+    intersec_dety[intersec_dety < 0] = 0
+
+    # (M, N)
+    intersection = intersec_detx * intersec_dety
+    union = wid_boxes1 * height_boxes1 + wid_boxes2 * height_boxes2 - intersection
+    iou = intersection / (union + 1e-7)
+
     ##########################################################################
     #                             END OF YOUR CODE                           #
     ##########################################################################
@@ -330,7 +379,37 @@ def rcnn_get_deltas_from_anchors(
     ##########################################################################
     deltas = None
     # Replace "pass" statement with your code
-    pass
+
+    # (N, )
+    is_background = (gt_boxes[:, :4] == -1)
+
+    # (N, )
+    p_x = (anchors[:, 0] + anchors[:, 2])/2
+    b_x = (gt_boxes[:, 0] + gt_boxes[:, 2])/2
+
+    # (N, )
+    p_y = (anchors[:, 1] + anchors[:, 3])/2
+    b_y = (gt_boxes[:, 1] + gt_boxes[:, 3])/2
+    
+    # (N, )
+    p_w = anchors[:, 2] - anchors[:, 0]
+    b_w = gt_boxes[:, 2] - gt_boxes[:, 0]
+
+    # (N, )
+    p_h = anchors[:, 3] - anchors[:, 1]
+    b_h = gt_boxes[:, 3] - gt_boxes[:, 1]
+
+    # (N, )
+    t_x = (b_x - p_x) / p_w
+    t_y = (b_y - p_y) / p_h
+    t_w = torch.log(b_w / p_w)
+    t_h = torch.log(b_h / p_h)
+    
+    # (N, 4)
+    deltas = torch.stack([t_x, t_y, t_w, t_h], dim=1)
+    deltas[is_background] = -1e8
+    torch.nan_to_num_(deltas, -1e8)
+    
     ##########################################################################
     #                             END OF YOUR CODE                           #
     ##########################################################################
@@ -365,7 +444,34 @@ def rcnn_apply_deltas_to_anchors(
     ##########################################################################
     output_boxes = None
     # Replace "pass" statement with your code
-    pass
+
+    # (N, 4)
+    is_background = (deltas < -1e7)
+
+    # (N, )
+    p_x = (anchors[:, 0] + anchors[:, 2])/2
+    p_y = (anchors[:, 1] + anchors[:, 3])/2
+
+    # (N, )
+    p_w = anchors[:, 2] - anchors[:, 0]
+    p_h = anchors[:, 3] - anchors[:, 1]
+
+    # (N, )
+    b_x = p_x + p_w * deltas[:, 0]
+    b_y = p_y + p_h * deltas[:, 1]
+    b_w = p_w * torch.exp(deltas[:, 2])
+    b_h = p_h * torch.exp(deltas[:, 3])
+
+    # (N, )
+    x1 = b_x - b_w/2
+    y1 = b_y - b_h/2
+    x2 = b_x + b_w/2
+    y2 = b_y + b_h/2
+
+    # (N, 4)
+    output_boxes = torch.stack([x1, y1, x2, y2], dim=1)
+    output_boxes[is_background] = -1e8
+
     ##########################################################################
     #                             END OF YOUR CODE                           #
     ##########################################################################
