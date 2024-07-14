@@ -216,7 +216,11 @@ def generate_fpn_anchors(
             width = math.sqrt(area / aspect_ratio)
             height = area / width
             # shape: (2, )
-            top_left_vec = torch.tensor((-width / 2, height / 2))
+            top_left_vec = torch.tensor((-width / 2, height / 2), device=locations.device)
+            # DEBUG
+            #print("From func: location's device", locations.device)
+            #print("From func: top_left_vec's device", top_left_vec.device)
+            
             # shape: (H * W, 2)
             top_left_location = locations + top_left_vec
             bottom_right_location = locations - top_left_vec
@@ -308,7 +312,7 @@ def rcnn_match_anchors_to_gt(
     """
     Match anchor boxes (or RPN proposals) with a set of GT boxes. Anchors having
     high IoU with any GT box are assigned "foreground" and matched with that box
-    or vice-versa.
+    or vice-versa.  
 
     NOTE: This function is NOT BATCHED. Call separately for GT boxes per image.
 
@@ -442,6 +446,7 @@ def rcnn_apply_deltas_to_anchors(
     ##########################################################################
     # TODO: Implement the transformation logic to get output boxes.          #
     ##########################################################################
+
     output_boxes = None
     # Replace "pass" statement with your code
 
@@ -642,7 +647,14 @@ class RPN(nn.Module):
             None,
         )
         # Replace "pass" statement with your code
-        pass
+        
+        pred_obj_logits, pred_boxreg_deltas = self.pred_net.forward(feats_per_fpn_level)
+
+        shape_per_fpn_level = {key: tuple(feats_per_fpn_level[key].shape) for key in feats_per_fpn_level}
+        locations_per_fpn_level = get_fpn_location_coords(shape_per_fpn_level, strides_per_fpn_level, device=feats_per_fpn_level["p3"].device)
+        anchors_per_fpn_level = generate_fpn_anchors(locations_per_fpn_level, strides_per_fpn_level, 
+                                                     self.anchor_stride_scale, self.anchor_aspect_ratios)
+        
         ######################################################################
         #                           END OF YOUR CODE                         #
         ######################################################################
@@ -682,7 +694,14 @@ class RPN(nn.Module):
         # giving matching GT boxes to anchor boxes). Fill this list:
         matched_gt_boxes = []
         # Replace "pass" statement with your code
-        pass
+
+        # assert (gt_boxes != None)
+        for batch_idx in range(len(anchor_boxes)):
+            matched_gt_box = rcnn_match_anchors_to_gt(anchor_boxes[batch_idx], 
+                                                      gt_boxes[batch_idx], 
+                                                      self.anchor_iou_thresholds)
+            matched_gt_boxes.append(matched_gt_box)
+
         ######################################################################
         #                           END OF YOUR CODE                         #
         ######################################################################
@@ -723,7 +742,34 @@ class RPN(nn.Module):
             # Feel free to delete this line: (but keep variable names same)
             loss_obj, loss_box = None, None
             # Replace "pass" statement with your code
-            pass
+            
+            # Step 1
+            num_samples = self.batch_size_per_image * num_images
+            # shape: (num_samples / 2, )
+            fg_idx, bg_idx = sample_rpn_training(matched_gt_boxes, 
+                                                           num_samples, 
+                                                           0.5)
+            # (num_samples, 4)
+            anchor_boxes_samples = torch.cat((anchor_boxes[fg_idx], anchor_boxes[bg_idx]), dim=0)
+            # (num_samples, 5)
+            matched_gt_boxes_samples = torch.cat((matched_gt_boxes[fg_idx], matched_gt_boxes[bg_idx]), dim=0)
+            # (num_samples, 4)
+            pred_boxreg_deltas_samples = torch.cat((pred_boxreg_deltas[fg_idx], pred_boxreg_deltas[bg_idx]), dim=0)
+            # (num_samples, )
+            pred_obj_logits_samples = torch.cat((pred_obj_logits[fg_idx], pred_obj_logits[bg_idx]), dim = 0)
+            
+            # Step 2
+            # (num_samples, 4)
+            gt_box_deltas = rcnn_get_deltas_from_anchors(anchor_boxes_samples, matched_gt_boxes_samples)
+
+            # Step 3
+            loss_obj = F.binary_cross_entropy_with_logits(pred_obj_logits_samples, 
+                                                          matched_gt_boxes_samples[:, -1].float(), reduction="none")
+
+            # we only care about box loss for "foreground"
+            loss_box = F.l1_loss(pred_boxreg_deltas_samples, gt_box_deltas, reduction="none")
+            loss_box[gt_box_deltas == -1e8] *= 0
+
             ##################################################################
             #                         END OF YOUR CODE                       #
             ##################################################################
@@ -791,7 +837,29 @@ class RPN(nn.Module):
                 # different shapes, you need to make some intermediate views.
                 ##############################################################
                 # Replace "pass" statement with your code
-                pass
+
+                # (HWA, 4)
+                level_proposal = rcnn_apply_deltas_to_anchors(level_boxreg_deltas[_batch_idx], level_anchors)
+                level_proposal[:, [0, 2]] = level_proposal[:, [0, 2]].clip(min=0, max=image_size[0])
+                level_proposal[:, [1, 3]] = level_proposal[:, [1, 3]].clip(min=0, max=image_size[1])
+             
+                # (pre_nms_topk, ); (pre_nms_topk, )
+                pre_topk_obj_logits, pre_indices = level_obj_logits[_batch_idx].topk(self.pre_nms_topk, dim=-1)
+                # (pre_nms_topk, 4)
+                pre_topk_proposal = level_proposal[pre_indices]
+
+                # (x, 4) where x is related to nms computing
+                iou_threshold = 0.5
+
+                pre_topk_proposal_after_nms = nms(pre_topk_proposal, pre_topk_obj_logits, iou_threshold)
+                # (post_nums_topk, )
+                post_indices = pre_indices[:self.post_nms_topk]
+                # (min(x, post_nums_topk), 4)
+                if (pre_topk_proposal_after_nms.shape[0] >= post_indices.shape[0]):
+                    post_topk_proposal = pre_topk_proposal_after_nms[post_indices]
+                
+                level_proposals_per_image.append(post_topk_proposal)
+
                 ##############################################################
                 #                        END OF YOUR CODE                    #
                 ##############################################################
