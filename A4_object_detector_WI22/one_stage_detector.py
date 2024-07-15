@@ -60,16 +60,17 @@ class FCOSPredictionNetwork(nn.Module):
         stem_cls = []
         stem_box = []
         # Replace "pass" statement with your code
+        last_channels = in_channels
         for i in range(len(stem_channels)):
             stem_cls.extend([
-                nn.Conv2d(in_channels, stem_channels[i], kernel_size=3, padding=1),
+                nn.Conv2d(last_channels, stem_channels[i], kernel_size=3, padding=1),
                 nn.ReLU()
             ])
             stem_box.extend([
-                nn.Conv2d(in_channels, stem_channels[i], kernel_size=3, padding=1),
+                nn.Conv2d(last_channels, stem_channels[i], kernel_size=3, padding=1),
                 nn.ReLU()
             ])
-            in_channels = stem_channels[i]
+            last_channels = stem_channels[i]
         # weight initialization is in the last part of the code with comment "weight initialization"
         
         # Wrap the layers defined by student into a `nn.Sequential` module:
