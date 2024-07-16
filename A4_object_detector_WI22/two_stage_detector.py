@@ -224,7 +224,7 @@ def generate_fpn_anchors(
             width = math.sqrt(area / aspect_ratio)
             height = area / width
             # shape: (2, )
-            top_left_vec = torch.tensor((-width / 2, height / 2), device=locations.device)
+            top_left_vec = torch.tensor((-width / 2, -height / 2), device=locations.device)
             
             # shape: (H * W, 2)
             top_left_location = locations + top_left_vec
@@ -1021,10 +1021,12 @@ class FasterRCNN(nn.Module):
         ######################################################################
         # Replace "pass" statement with your code
 
-        cls_pred.extend([
-                        nn.Flatten(), 
-                        nn.Linear(last_channels * self.roi_size[0] * self.roi_size[1], self.num_classes + 1)
-                         ])
+        cls_pred.append(nn.Flatten())
+
+        cls_linear = nn.Linear(last_channels * roi_size[0] * roi_size[1], num_classes + 1)
+        nn.init.normal_(cls_linear.weight, 0, 0.01) 
+        nn.init.constant_(cls_linear.bias, 0) 
+        cls_pred.append(cls_linear)
 
         ######################################################################
         #                           END OF YOUR CODE                         #
@@ -1164,36 +1166,21 @@ class FasterRCNN(nn.Module):
         # Feel free to delete this line: (but keep variable names same)
         loss_cls = None
         # Replace "pass" statement with your code
-        # step 1
-        fg_idx, bg_idx = sample_rpn_training(matched_gt_boxes, num_images * self.batch_size_per_image, 0.25)
-
-        # step 2
-        selected_gt_cls = torch.cat((matched_gt_boxes[fg_idx], matched_gt_boxes[bg_idx]), dim=0)[:, -1]
-        selected_cls_logits = torch.cat((pred_cls_logits[fg_idx], pred_cls_logits[bg_idx]), dim=0)
-        # print(selected_cls_logits)
-        # print(selected_gt_cls+1)
-        selected_gt_cls = F.one_hot((selected_gt_cls+1).long(), num_classes = self.num_classes + 1).to(torch.float32)
-        # print(selected_gt_cls.shape)
-        # step 3
-        loss_cls = F.cross_entropy(selected_cls_logits, selected_gt_cls)
-
-
-
         
         # Step 1
         fg_idx, bg_idx = sample_rpn_training(matched_gt_boxes, 
                                              num_images * self.batch_size_per_image, 
                                              0.25)
+        selected_idx = torch.cat([fg_idx, bg_idx], dim=0)
 
         # Step 2
-        gt_cls = torch.cat((matched_gt_boxes[fg_idx], matched_gt_boxes[bg_idx]), dim=0)[:, -1]
-        cls_logits = torch.cat((pred_cls_logits[fg_idx], pred_cls_logits[bg_idx]), dim=0)
-        # background is '-1'
-        gt_cls = F.one_hot((gt_cls+1).long(), num_classes = self.num_classes + 1).to(torch.float32)
-        
-        # Step 3
-        loss_cls = F.cross_entropy(cls_logits, gt_cls)
+        gt_cls = matched_gt_boxes[selected_idx, -1]
+        cls_logits = pred_cls_logits[selected_idx]
 
+        # Step 3
+        # background is '-1'
+        gt_cls = gt_cls + 1
+        loss_cls = F.cross_entropy(cls_logits, gt_cls.long())
         ######################################################################
         #                           END OF YOUR CODE                         #
         ######################################################################
