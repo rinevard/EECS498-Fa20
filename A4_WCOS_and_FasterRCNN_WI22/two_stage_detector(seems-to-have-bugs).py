@@ -103,7 +103,7 @@ class RPNPredictionNetwork(nn.Module):
         nn.init.constant_(self.pred_obj.bias, 0)
 
         # 初始化 pred_box
-        nn.init.normal_(self.pred_box.weight, mean=0, std=0.001)
+        nn.init.normal_(self.pred_box.weight, mean=0, std=0.01)
         nn.init.constant_(self.pred_box.bias, 0)
 
     def forward(self, feats_per_fpn_level: TensorDict) -> List[TensorDict]:
@@ -224,11 +224,11 @@ def generate_fpn_anchors(
             width = math.sqrt(area / aspect_ratio)
             height = area / width
             # shape: (2, )
-            top_left_vec = torch.tensor((-width / 2, -height / 2), device=locations.device)
+            vec_to_top_left = torch.tensor((-width / 2, -height / 2), device=locations.device)
             
             # shape: (H * W, 2)
-            top_left_location = locations + top_left_vec
-            bottom_right_location = locations - top_left_vec
+            top_left_location = locations + vec_to_top_left
+            bottom_right_location = locations - vec_to_top_left
             # shape: (H * W, 4)
             anchor_boxes.append(torch.cat((top_left_location, bottom_right_location), dim=1))
 
@@ -266,42 +266,23 @@ def iou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
     ##########################################################################
     # Replace "pass" statement with your code
     
-    # print("from def iou: boxes1.shape:", boxes1.shape)
-    # print("from def iou: boxes2.shape:", boxes2.shape)
-    # (M, 2)
-    x_boxes1 = boxes1[:, [0, 2]]
-    y_boxes1 = boxes1[:, [1, 3]]
-    # (N, 2)
-    x_boxes2 = boxes2[:, [0, 2]]
-    y_boxes2 = boxes2[:, [1, 3]]
-
-    # (M, 1)
-    max_x_boxes1 = torch.max(x_boxes1, dim=1).values.unsqueeze(1)
-    min_x_boxes1 = torch.min(x_boxes1, dim=1).values.unsqueeze(1)
-    max_y_boxes1 = torch.max(y_boxes1, dim=1).values.unsqueeze(1)
-    min_y_boxes1 = torch.min(y_boxes1, dim=1).values.unsqueeze(1)
-    wid_boxes1 = max_x_boxes1 - min_x_boxes1
-    height_boxes1 = max_y_boxes1 - min_y_boxes1
-
-    # (1, N)
-    max_x_boxes2 = torch.max(x_boxes2, dim=1).values.unsqueeze(0)
-    min_x_boxes2 = torch.min(x_boxes2, dim=1).values.unsqueeze(0)
-    max_y_boxes2 = torch.max(y_boxes2, dim=1).values.unsqueeze(0)
-    min_y_boxes2 = torch.min(y_boxes2, dim=1).values.unsqueeze(0)
-    wid_boxes2 = max_x_boxes2 - min_x_boxes2
-    height_boxes2 = max_y_boxes2 - min_y_boxes2
-
-    # (M, N)
-    intersec_detx = torch.min(torch.min((max_x_boxes1 - min_x_boxes2), (max_x_boxes2 - min_x_boxes1)), 
-                              torch.min(wid_boxes1, wid_boxes2))
-    intersec_dety = torch.min(torch.min((max_y_boxes1 - min_y_boxes2), (max_y_boxes2 - min_y_boxes1)), 
-                              torch.min(height_boxes1, height_boxes2))
-    intersec_detx[intersec_detx < 0] = 0
-    intersec_dety[intersec_dety < 0] = 0
-
-    # (M, N)
-    intersection = intersec_detx * intersec_dety
-    union = wid_boxes1 * height_boxes1 + wid_boxes2 * height_boxes2 - intersection
+    x1, y1, x2, y2 = boxes1.unbind(-1)
+    x1_, y1_, x2_, y2_ = boxes2.unbind(-1)
+    
+    # Compute areas
+    area1 = (x2 - x1).clamp(min=0) * (y2 - y1).clamp(min=0)
+    area2 = (x2_ - x1_).clamp(min=0) * (y2_ - y1_).clamp(min=0)
+    
+    # Compute intersection
+    left = torch.max(x1[:, None], x1_[None, :])
+    top = torch.max(y1[:, None], y1_[None, :])
+    right = torch.min(x2[:, None], x2_[None, :])
+    bottom = torch.min(y2[:, None], y2_[None, :])
+    
+    intersection = (right - left).clamp(min=0) * (bottom - top).clamp(min=0)
+    
+    # Compute IoU
+    union = area1[:, None] + area2[None, :] - intersection
     iou = intersection / (union + 1e-7)
 
     ##########################################################################
@@ -922,7 +903,7 @@ class RPN(nn.Module):
                 pre_topk_proposal = level_proposal[pre_indices]
 
                 # Step 3
-                iou_threshold = 0.5
+                iou_threshold = self.nms_thresh
                 # (x, ) where x is related to nms computing
                 kept_indices = nms(pre_topk_proposal, pre_topk_obj_logits, iou_threshold)
                 # (x, 4)
@@ -1250,17 +1231,17 @@ class FasterRCNN(nn.Module):
         # predicted IDs such that model outputs ID (0-19) for 20 VOC classes.
         ######################################################################
         pred_scores, pred_classes = None, None
-        # Replace "pass" statement with your code
-        
+        # Replace "pass" statement with your code       
+
         # Step 1
         # (N, 21)
         pred_scores = torch.softmax(pred_cls_logits, dim=1)
         # (N, )
-        pred_scores, pred_indices = torch.max(pred_scores, dim = 1)
+        pred_scores, pred_indices = torch.max(pred_scores, dim=1)
 
         # Step 2
         # (N, )
-        need_keep = (pred_scores > test_score_thresh)
+        need_keep = (pred_scores > test_score_thresh) & (pred_indices != 0)
         # (x, ) where x depends on prediction
         pred_scores = pred_scores[need_keep]
         pred_classes = pred_indices[need_keep] - 1
